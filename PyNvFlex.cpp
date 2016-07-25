@@ -3,6 +3,7 @@
 #include <boost/numpy.hpp>
 #include <boost/make_shared.hpp>
 #include <flex.h>
+#include <numeric>
 
 #ifdef NDEBUG
 #	define MODULE_NAME PyNvFlex
@@ -15,11 +16,10 @@ namespace np = boost::numpy;
 
 int size(const np::ndarray &array)
 {
-	int dim = 0;
-	int dimSize = 0;
-	int size = 1;
-	while (dimSize = array.shape(dim++)) size *= dimSize;
-	return size;
+	auto dims = array.get_nd();
+	auto shape = array.get_shape();
+	using Num = decltype(*shape);
+	return int(std::accumulate(shape, shape + dims, Num(1), std::multiplies<Num>()));
 }
 
 bpy::object flexErrorCallback;
@@ -139,7 +139,9 @@ np::ndarray FlexGetActive(const FlexSolver_ &solver)
 void FlexSetParticles(const FlexSolver_ &solver, const np::ndarray &particles)
 {
 	auto particlesF = particles.astype(np::dtype::get_builtin<float>());
-	flexSetParticles(solver.get(), reinterpret_cast<float*>(particlesF.get_data()), size(particlesF) / 4, eFlexMemoryHost);
+	auto data = reinterpret_cast<float*>(particlesF.get_data());
+	auto n = size(particlesF) / 4;
+	flexSetParticles(solver.get(), data, n, eFlexMemoryHost);
 }
 
 np::ndarray FlexGetParticles(const FlexSolver_ &solver, int n)
