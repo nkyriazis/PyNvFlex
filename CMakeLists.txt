@@ -1,0 +1,22 @@
+project( PyNvFlex ) 
+cmake_minimum_required( VERSION 3.0.2 )
+
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+find_package(NVFlex)
+find_package(Boost REQUIRED python)
+find_package(PythonLibs)
+find_file(BOOST_NUMPY_INSTALL_EXPORT boost_numpy.cmake)
+include(${BOOST_NUMPY_INSTALL_EXPORT})
+
+include_directories(${NVFlex_INCLUDE_DIR})
+include_directories(${Boost_INCLUDE_DIR})
+include_directories(${PYTHON_INCLUDE_DIRS})
+add_library(PyNvFlex SHARED PyNvFlex.cpp)
+target_link_libraries(PyNvFlex ${Boost_LIBRARIES} ${PYTHON_LIBRARIES} ${NVFlex_LIBRARIES} boost_numpy)
+set_target_properties(PyNvFlex PROPERTIES DEBUG_POSTFIX "D")
+if(WIN32)
+	set_target_properties(PyNvFlex PROPERTIES PREFIX "")
+	set_target_properties(PyNvFlex PROPERTIES SUFFIX ".pyd" FOLDER "Python")
+endif()
