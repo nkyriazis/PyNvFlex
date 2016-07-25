@@ -16,10 +16,10 @@ namespace np = boost::numpy;
 
 int size(const np::ndarray &array)
 {
-	auto dims = array.get_nd();
+	int dims = array.get_nd();
 	auto shape = array.get_shape();
-	using Num = decltype(*shape);
-	return int(std::accumulate(shape, shape + dims, Num(1), std::multiplies<Num>()));
+	using int__ = std::remove_reference<std::remove_const<decltype(*shape)>::type>::type;
+	return int(std::accumulate(shape, shape + dims, int__(1), std::multiplies<int__>()));
 }
 
 bpy::object flexErrorCallback;
@@ -139,9 +139,7 @@ np::ndarray FlexGetActive(const FlexSolver_ &solver)
 void FlexSetParticles(const FlexSolver_ &solver, const np::ndarray &particles)
 {
 	auto particlesF = particles.astype(np::dtype::get_builtin<float>());
-	auto data = reinterpret_cast<float*>(particlesF.get_data());
-	auto n = size(particlesF) / 4;
-	flexSetParticles(solver.get(), data, n, eFlexMemoryHost);
+	flexSetParticles(solver.get(), reinterpret_cast<float*>(particlesF.get_data()), size(particlesF) / 4, eFlexMemoryHost);
 }
 
 np::ndarray FlexGetParticles(const FlexSolver_ &solver, int n)
@@ -321,7 +319,7 @@ void FlexDestroySDF(FlexSDF_ &sdf)
 void FlexUpdateSDF(const FlexSDF_ &sdf, const np::ndarray &field)
 {
 	auto field_ = field.astype(np::dtype::get_builtin<float>());
-	flexUpdateSDF(sdf.get(), field_.shape(0), field_.shape(1), field_.shape(2),
+	flexUpdateSDF(sdf.get(), int(field_.shape(0)), int(field_.shape(1)), int(field_.shape(2)),
 		reinterpret_cast<float*>(field_.get_data()), eFlexMemoryHost);
 }
 
@@ -348,7 +346,7 @@ void FlexSetShapes(const FlexSolver_ &solver,
 	auto shapeFlags_ = shapeFlags.astype(np::dtype::get_builtin<int>());
 	flexSetShapes(solver.get(),
 		geometry_.data(),
-		geometry_.size(),
+		int(geometry_.size()),
 		reinterpret_cast<float*>(shapeAabbMins_.get_data()),
 		reinterpret_cast<float*>(shapeAabbMaxs_.get_data()),
 		reinterpret_cast<int*>(shapeOffsets_.get_data()),
