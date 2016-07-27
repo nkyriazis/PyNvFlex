@@ -2,8 +2,9 @@
 #include <boost/python/stl_iterator.hpp>
 #include <boost/numpy.hpp>
 #include <boost/make_shared.hpp>
-#include <flex.h>
 #include <numeric>
+#include <flex.h>
+#include <flexExt.h>
 
 #ifdef NDEBUG
 #	define MODULE_NAME PyNvFlex
@@ -39,12 +40,44 @@ FlexError PyNvFlexInit(int version, const bpy::object &errorFunc, int deviceInde
 }
 
 using FlexSolver_ = std::shared_ptr<FlexSolver>;
+auto CreateFlexSolver = [](FlexSolver *solver)
+{
+	return FlexSolver_(solver, [](FlexSolver* s) { flexDestroySolver(s); });
+};
+
 using FlexTriangleMesh_ = std::shared_ptr<FlexTriangleMesh>;
+auto CreateFlexTriangleMesh = [](FlexTriangleMesh *mesh)
+{
+	return FlexTriangleMesh_(mesh, [](FlexTriangleMesh *mesh) { flexDestroyTriangleMesh(mesh); });
+};
+
 using FlexSDF_ = std::shared_ptr<FlexSDF>;
+auto CreateFlexSDF = [](FlexSDF *sdf)
+{
+	return FlexSDF_(sdf, [](FlexSDF *sdf) { flexDestroySDF(sdf); });
+};
+
+using FlexExtAsset_ = std::shared_ptr<FlexExtAsset>;
+auto CreateFlexExtAsset = [](FlexExtAsset *asset)
+{
+	return FlexExtAsset_(asset, [](FlexExtAsset *asset) { flexExtDestroyAsset(asset); });
+};
+
+using FlexExtContainer_ = std::shared_ptr<FlexExtContainer>;
+auto CreateFlexExtContainer = [](FlexExtContainer *container)
+{
+	return FlexExtContainer_(container, [](FlexExtContainer *container) { flexExtDestroyContainer(container); });
+};
+
+using FlexExtInstance_ = std::shared_ptr<FlexExtInstance>;
+auto CreateFlexExtInstance = [](const FlexExtContainer_ &container, FlexExtInstance *inst)
+{
+	return FlexExtInstance_(inst, [=](FlexExtInstance *inst) { flexExtDestroyInstance(container.get(), inst); });
+};
 
 FlexSolver_ PyNvFlexCreateSolver(int maxParticles, int maxDiffuseParticles, unsigned char maxNeighborsPerParticle)
 {
-	return FlexSolver_(flexCreateSolver(maxParticles, maxDiffuseParticles, maxNeighborsPerParticle), [](FlexSolver* s) { flexDestroySolver(s);});
+	return CreateFlexSolver(flexCreateSolver(maxParticles, maxDiffuseParticles, maxNeighborsPerParticle));
 }
 
 void PyNvFlexDestroySolver(FlexSolver_ &solver)
@@ -66,9 +99,9 @@ np::ndarray FlexParamsGetGravity(const FlexParams &params)
 
 void FlexParamsSetGravity(FlexParams &params, const np::ndarray &gravity)
 {
-	params.mGravity[0] = bpy::extract<float>(gravity[0]);
-	params.mGravity[1] = bpy::extract<float>(gravity[1]);
-	params.mGravity[2] = bpy::extract<float>(gravity[2]);
+	auto gravityF = gravity.astype(np::dtype::get_builtin<float>());
+	auto ptr = reinterpret_cast<float*>(gravityF.get_data());
+	std::copy(ptr, ptr + 3, params.mGravity);
 }
 
 np::ndarray FlexParamsGetWind(const FlexParams &params)
@@ -78,9 +111,9 @@ np::ndarray FlexParamsGetWind(const FlexParams &params)
 
 void FlexParamsSetWind(FlexParams &params, const np::ndarray &Wind)
 {
-	params.mWind[0] = bpy::extract<float>(Wind[0]);
-	params.mWind[1] = bpy::extract<float>(Wind[1]);
-	params.mWind[2] = bpy::extract<float>(Wind[2]);
+	auto windF = Wind.astype(np::dtype::get_builtin<float>());
+	auto ptr = reinterpret_cast<float*>(windF.get_data());
+	std::copy(ptr, ptr + 3, params.mWind);
 }
 
 np::ndarray FlexParamsGetDiffuseSortAxis(const FlexParams &params)
@@ -90,9 +123,9 @@ np::ndarray FlexParamsGetDiffuseSortAxis(const FlexParams &params)
 
 void FlexParamsSetDiffuseSortAxis(FlexParams &params, const np::ndarray &DiffuseSortAxis)
 {
-	params.mDiffuseSortAxis[0] = bpy::extract<float>(DiffuseSortAxis[0]);
-	params.mDiffuseSortAxis[1] = bpy::extract<float>(DiffuseSortAxis[1]);
-	params.mDiffuseSortAxis[2] = bpy::extract<float>(DiffuseSortAxis[2]);
+	auto DiffuseSortAxisF = DiffuseSortAxis.astype(np::dtype::get_builtin<float>());
+	auto ptr = reinterpret_cast<float*>(DiffuseSortAxisF.get_data());
+	std::copy(ptr, ptr + 3, params.mDiffuseSortAxis);
 }
 
 np::ndarray FlexParamsGetPlanes(const FlexParams &params)
@@ -102,9 +135,9 @@ np::ndarray FlexParamsGetPlanes(const FlexParams &params)
 
 void FlexParamsSetPlanes(FlexParams &params, const np::ndarray &planes)
 {
-	for (int i = 0; i < 8; ++i)
-		for (int j = 0; j < 4; ++j)
-			params.mPlanes[i][j] = bpy::extract<float>(planes[i][j]);
+	auto planesF = planes.astype(np::dtype::get_builtin<float>());
+	auto ptr = reinterpret_cast<float*>(planesF.get_data());
+	std::copy(ptr, ptr + 8 * 4, reinterpret_cast<float*>(params.mPlanes));
 }
 
 void FlexSetParams(const FlexSolver_ &solver, const FlexParams &params)
@@ -170,7 +203,7 @@ void FlexSetVelocities(const FlexSolver_ &solver, const np::ndarray &velocities)
 
 np::ndarray FlexGetVelocities(const FlexSolver_ &solver, int n)
 {
-	np::ndarray velocities = np::zeros(bpy::make_tuple(n, 4), np::dtype::get_builtin<float>());
+	np::ndarray velocities = np::zeros(bpy::make_tuple(n, 3), np::dtype::get_builtin<float>());
 	flexGetVelocities(solver.get(), reinterpret_cast<float*>(velocities.get_data()), n, eFlexMemoryHost);
 	return velocities;
 }
@@ -178,12 +211,12 @@ np::ndarray FlexGetVelocities(const FlexSolver_ &solver, int n)
 void FlexSetPhases(const FlexSolver_ &solver, const np::ndarray &Phases)
 {
 	auto PhasesF = Phases.astype(np::dtype::get_builtin<int>());
-	flexSetPhases(solver.get(), reinterpret_cast<int*>(PhasesF.get_data()), size(PhasesF) / 3, eFlexMemoryHost);
+	flexSetPhases(solver.get(), reinterpret_cast<int*>(PhasesF.get_data()), size(PhasesF), eFlexMemoryHost);
 }
 
 np::ndarray FlexGetPhases(const FlexSolver_ &solver, int n)
 {
-	np::ndarray Phases = np::zeros(bpy::make_tuple(n, 4), np::dtype::get_builtin<int>());
+	np::ndarray Phases = np::zeros(bpy::make_tuple(n), np::dtype::get_builtin<int>());
 	flexGetPhases(solver.get(), reinterpret_cast<int*>(Phases.get_data()), n, eFlexMemoryHost);
 	return Phases;
 }
@@ -269,7 +302,7 @@ bpy::tuple FlexGetRigidTransforms(const FlexSolver_ &solver, int numRigids)
 
 FlexTriangleMesh_ FlexCreateTriangleMesh()
 {
-	return FlexTriangleMesh_(flexCreateTriangleMesh(), [](FlexTriangleMesh*m) {flexDestroyTriangleMesh(m);});
+	return CreateFlexTriangleMesh(flexCreateTriangleMesh());
 }
 
 void FlexDestroyTriangleMesh(FlexTriangleMesh_ &mesh)
@@ -308,7 +341,7 @@ bpy::tuple FlexGetTriangleMeshBounds(const FlexTriangleMesh_ &mesh)
 
 FlexSDF_ FlexCreateSDF()
 {
-	return FlexSDF_(flexCreateSDF(), [](FlexSDF*sdf) {flexDestroySDF(sdf);});
+	return CreateFlexSDF(flexCreateSDF());
 }
 
 void FlexDestroySDF(FlexSDF_ &sdf)
@@ -544,6 +577,90 @@ boost::shared_ptr<FlexCollisionGeometry> ConstructFromSDF(const FlexCollisionSDF
 	return ret;
 }
 
+bpy::tuple FlexExtCreateWeldedMeshIndices(const np::ndarray &vertices, float threshold)
+{
+	auto verticesF = vertices.astype(np::dtype::get_builtin<float>());
+	auto V = size(verticesF) / 3;
+
+	auto uniqueVerts = np::zeros(bpy::make_tuple(V), np::dtype::get_builtin<int>());
+	auto originalToUniqueMap = np::zeros(bpy::make_tuple(V), np::dtype::get_builtin<int>());
+
+	int count = flexExtCreateWeldedMeshIndices(
+		reinterpret_cast<float*>(verticesF.get_data()),
+		int(V),
+		reinterpret_cast<int*>(uniqueVerts.get_data()),
+		reinterpret_cast<int*>(originalToUniqueMap.get_data()),
+		threshold);
+
+	return bpy::make_tuple(
+		uniqueVerts.slice(0, count),
+		originalToUniqueMap.slice(0, count)
+	);
+}
+
+FlexExtAsset_ FlexExtCreateRigidFromMesh(const np::ndarray &vertices,
+										 const np::ndarray &indices,
+										 float radius, float expand)
+{
+	auto verticesF = vertices.astype(np::dtype::get_builtin<float>());
+	auto indicesI = indices.astype(np::dtype::get_builtin<int>());
+	return CreateFlexExtAsset(
+		flexExtCreateRigidFromMesh(
+			reinterpret_cast<float*>(verticesF.get_data()),
+			size(verticesF) / 3,
+			reinterpret_cast<int*>(indicesI.get_data()),
+			size(indicesI),
+			radius, expand
+		)
+	);
+}
+
+FlexExtContainer_ FlexExtCreateContainer(const FlexSolver_ &solver, int maxParticles)
+{
+	return CreateFlexExtContainer(flexExtCreateContainer(solver.get(), maxParticles));
+}
+
+np::ndarray FlexExtAllocParticles(const FlexExtContainer_ &container, int n)
+{
+	auto indices = np::zeros(bpy::make_tuple(n), np::dtype::get_builtin<int>());
+	flexExtAllocParticles(container.get(), n, reinterpret_cast<int*>(indices.get_data()));
+	return indices;
+}
+
+void FlexExtFreeParticles(const FlexExtContainer_ &container, const np::ndarray &indices)
+{
+	auto indicesI = indices.astype(np::dtype::get_builtin<int>());
+	flexExtFreeParticles(container.get(), size(indicesI), reinterpret_cast<int*>(indicesI.get_data()));
+}
+
+FlexExtInstance_ FlexExtCreateInstance(const FlexExtContainer_ &container,
+									   const FlexExtAsset_ &asset,
+									   const np::ndarray &transform,
+									   float vx, float vy, float vz,
+									   int phase,
+									   float invMassScale)
+{
+	auto transformF = transform.astype(np::dtype::get_builtin<float>());
+	return CreateFlexExtInstance(container,
+		flexExtCreateInstance(
+			container.get(),
+			asset.get(),
+			reinterpret_cast<float*>(transformF.get_data()),
+			vx, vy, vz, phase, invMassScale
+		)
+	);
+}
+
+void FlexExtTickContainer(const FlexExtContainer_ &container,
+						  float dt,
+						  int numSubsteps,
+						  FlexTimers *timers = nullptr)
+{
+	flexExtTickContainer(container.get(), dt, numSubsteps, timers);
+}
+
+BOOST_PYTHON_FUNCTION_OVERLOADS(FlexExtTickContainerOverloads, FlexExtTickContainer, 3, 4)
+
 BOOST_PYTHON_MODULE(MODULE_NAME)
 {
 	using bpy::arg;
@@ -775,4 +892,17 @@ BOOST_PYTHON_MODULE(MODULE_NAME)
 	bpy::def("flexSetDiffuseParticles", FlexSetDiffuseParticles, (arg("solver"), arg("p"), arg("v")));
 	bpy::def("flexGetContacts", FlexGetContacts, (arg("solver"), arg("maxParticles")));
 	bpy::def("flexGetBounds", FlexGetBounds, (arg("solver")));
+
+	bpy::def("flexExtCreateWeldedMeshIndices", FlexExtCreateWeldedMeshIndices, (arg("vertices"), arg("threshold")));
+
+	bpy::class_<FlexExtAsset_>("FlexExtAsset");
+	bpy::class_<FlexExtContainer_>("FlexExtContainer");
+	bpy::class_<FlexExtInstance_>("FlexExtInstance");
+
+	bpy::def("flexExtCreateRigidFromMesh", FlexExtCreateRigidFromMesh, (arg("vertices"), arg("indices"), arg("radius"), arg("expand")));
+	bpy::def("flexExtCreateContainer", FlexExtCreateContainer, (arg("solver"), arg("maxParticles")));
+	bpy::def("flexExtAllocParticles", FlexExtAllocParticles, (arg("container"), arg("n")));
+	bpy::def("flexExtFreeParticles", FlexExtFreeParticles, (arg("container"), arg("indices")));
+	bpy::def("flexExtCreateInstance", FlexExtCreateInstance, (arg("container"), arg("asset"), arg("transform"), arg("vx"), arg("vy"), arg("vz"), arg("phase"), arg("invMassScale")));
+	bpy::def("flexExtTickContainer", FlexExtTickContainer, FlexExtTickContainerOverloads(args("container", "dt", "numSubsteps", "timers")));
 }
