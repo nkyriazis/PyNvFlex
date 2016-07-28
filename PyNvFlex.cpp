@@ -130,7 +130,7 @@ void FlexParamsSetDiffuseSortAxis(FlexParams &params, const np::ndarray &Diffuse
 
 np::ndarray FlexParamsGetPlanes(const FlexParams &params)
 {
-	return np::from_data(params.mPlanes, np::dtype::get_builtin<float>(), bpy::make_tuple(8, 4), bpy::make_tuple(sizeof(float)), bpy::object());
+	return np::from_data(params.mPlanes, np::dtype::get_builtin<float>(), bpy::make_tuple(8, 4), bpy::make_tuple(4 * sizeof(float), sizeof(float)), bpy::object());
 }
 
 void FlexParamsSetPlanes(FlexParams &params, const np::ndarray &planes)
@@ -604,11 +604,13 @@ FlexExtAsset_ FlexExtCreateRigidFromMesh(const np::ndarray &vertices,
 {
 	auto verticesF = vertices.astype(np::dtype::get_builtin<float>());
 	auto indicesI = indices.astype(np::dtype::get_builtin<int>());
+	auto vertexData = reinterpret_cast<float*>(verticesF.get_data());
+	auto triangleData = reinterpret_cast<int*>(indicesI.get_data());
 	return CreateFlexExtAsset(
 		flexExtCreateRigidFromMesh(
-			reinterpret_cast<float*>(verticesF.get_data()),
+			vertexData,
 			size(verticesF) / 3,
-			reinterpret_cast<int*>(indicesI.get_data()),
+			triangleData,
 			size(indicesI),
 			radius, expand
 		)
@@ -658,6 +660,27 @@ void FlexExtTickContainer(const FlexExtContainer_ &container,
 {
 	flexExtTickContainer(container.get(), dt, numSubsteps, timers);
 }
+
+int FlexExtAssetNumParticles(const FlexExtAsset_ &asset)
+{
+	return asset->mNumParticles;
+}
+
+int FlexExtInstanceNumParticles(const FlexExtInstance_ &inst)
+{
+	return inst->mNumParticles;
+}
+
+np::ndarray FlexExtInstanceParticleIndices(const FlexExtInstance_ &inst)
+{
+	auto N = FlexExtInstanceNumParticles(inst);
+	return np::from_data(inst->mParticleIndices, np::dtype::get_builtin<int>(), bpy::make_tuple(N), bpy::make_tuple(sizeof(int)), bpy::object());
+}
+
+FlexExtAsset_ FlexExtInstanceAsset(const FlexExtInstance_ &inst)
+{
+	return FlexExtAsset_(const_cast<FlexExtAsset*>(inst->mAsset), [](FlexExtAsset*) {});
+} 
 
 BOOST_PYTHON_FUNCTION_OVERLOADS(FlexExtTickContainerOverloads, FlexExtTickContainer, 3, 4)
 
@@ -895,9 +918,17 @@ BOOST_PYTHON_MODULE(MODULE_NAME)
 
 	bpy::def("flexExtCreateWeldedMeshIndices", FlexExtCreateWeldedMeshIndices, (arg("vertices"), arg("threshold")));
 
-	bpy::class_<FlexExtAsset_>("FlexExtAsset");
+	bpy::class_<FlexExtAsset_>("FlexExtAsset")
+		.add_property("mNumParticles", FlexExtAssetNumParticles)
+		;
+
 	bpy::class_<FlexExtContainer_>("FlexExtContainer");
-	bpy::class_<FlexExtInstance_>("FlexExtInstance");
+
+	bpy::class_<FlexExtInstance_>("FlexExtInstance")
+		.add_property("mNumParticles", FlexExtInstanceNumParticles)
+		.add_property("mParticleIndices", FlexExtInstanceParticleIndices)
+		.add_property("mAsset", FlexExtInstanceAsset)
+		;
 
 	bpy::def("flexExtCreateRigidFromMesh", FlexExtCreateRigidFromMesh, (arg("vertices"), arg("indices"), arg("radius"), arg("expand")));
 	bpy::def("flexExtCreateContainer", FlexExtCreateContainer, (arg("solver"), arg("maxParticles")));
