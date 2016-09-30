@@ -680,7 +680,17 @@ np::ndarray FlexExtInstanceParticleIndices(const FlexExtInstance_ &inst)
 FlexExtAsset_ FlexExtInstanceAsset(const FlexExtInstance_ &inst)
 {
 	return FlexExtAsset_(const_cast<FlexExtAsset*>(inst->mAsset), [](FlexExtAsset*) {});
-} 
+}
+
+np::ndarray FlexExtInstanceTranslation(const FlexExtInstance_ &inst)
+{
+	return np::from_data(inst->mShapeTranslations, np::dtype::get_builtin<float>(), bpy::make_tuple(3), bpy::make_tuple(sizeof(float)), bpy::object());
+}
+
+np::ndarray FlexExtInstanceRotation(const FlexExtInstance_ &inst)
+{
+	return np::from_data(inst->mShapeRotations, np::dtype::get_builtin<float>(), bpy::make_tuple(4), bpy::make_tuple(sizeof(float)), bpy::object());
+}
 
 BOOST_PYTHON_FUNCTION_OVERLOADS(FlexExtTickContainerOverloads, FlexExtTickContainer, 3, 4)
 
@@ -928,6 +938,8 @@ BOOST_PYTHON_MODULE(MODULE_NAME)
 		.add_property("mNumParticles", FlexExtInstanceNumParticles)
 		.add_property("mParticleIndices", FlexExtInstanceParticleIndices)
 		.add_property("mAsset", FlexExtInstanceAsset)
+		.add_property("mShapeTranslations", FlexExtInstanceTranslation)
+		.add_property("mShapeRotations", FlexExtInstanceRotation)
 		;
 
 	bpy::def("flexExtCreateRigidFromMesh", FlexExtCreateRigidFromMesh, (arg("vertices"), arg("indices"), arg("radius"), arg("expand")));
