@@ -42,36 +42,42 @@ FlexError PyNvFlexInit(int version, const bpy::object &errorFunc, int deviceInde
 using FlexSolver_ = std::shared_ptr<FlexSolver>;
 auto CreateFlexSolver = [](FlexSolver *solver)
 {
+	if (solver == nullptr) throw std::exception("null solver");
 	return FlexSolver_(solver, [](FlexSolver* s) { flexDestroySolver(s); });
 };
 
 using FlexTriangleMesh_ = std::shared_ptr<FlexTriangleMesh>;
 auto CreateFlexTriangleMesh = [](FlexTriangleMesh *mesh)
 {
+	if (mesh == nullptr) throw std::exception("null mesh");
 	return FlexTriangleMesh_(mesh, [](FlexTriangleMesh *mesh) { flexDestroyTriangleMesh(mesh); });
 };
 
 using FlexSDF_ = std::shared_ptr<FlexSDF>;
 auto CreateFlexSDF = [](FlexSDF *sdf)
 {
+	if (sdf == nullptr) throw std::exception("null sdf");
 	return FlexSDF_(sdf, [](FlexSDF *sdf) { flexDestroySDF(sdf); });
 };
 
 using FlexExtAsset_ = std::shared_ptr<FlexExtAsset>;
 auto CreateFlexExtAsset = [](FlexExtAsset *asset)
 {
+	if (asset == nullptr) throw std::exception("null asset");
 	return FlexExtAsset_(asset, [](FlexExtAsset *asset) { flexExtDestroyAsset(asset); });
 };
 
 using FlexExtContainer_ = std::shared_ptr<FlexExtContainer>;
 auto CreateFlexExtContainer = [](FlexExtContainer *container)
 {
+	if (container == nullptr) throw std::exception("null container");
 	return FlexExtContainer_(container, [](FlexExtContainer *container) { flexExtDestroyContainer(container); });
 };
 
 using FlexExtInstance_ = std::shared_ptr<FlexExtInstance>;
 auto CreateFlexExtInstance = [](const FlexExtContainer_ &container, FlexExtInstance *inst)
 {
+	if (inst == nullptr) throw std::exception("null instance");
 	return FlexExtInstance_(inst, [=](FlexExtInstance *inst) { flexExtDestroyInstance(container.get(), inst); });
 };
 
@@ -661,6 +667,11 @@ void FlexExtTickContainer(const FlexExtContainer_ &container,
 	flexExtTickContainer(container.get(), dt, numSubsteps, timers);
 }
 
+void FlexExtUpdateInstances(const FlexExtContainer_ &container)
+{
+	flexExtUpdateInstances(container.get());
+}
+
 int FlexExtAssetNumParticles(const FlexExtAsset_ &asset)
 {
 	return asset->mNumParticles;
@@ -691,6 +702,7 @@ np::ndarray FlexExtInstanceRotation(const FlexExtInstance_ &inst)
 {
 	return np::from_data(inst->mShapeRotations, np::dtype::get_builtin<float>(), bpy::make_tuple(4), bpy::make_tuple(sizeof(float)), bpy::object());
 }
+
 
 BOOST_PYTHON_FUNCTION_OVERLOADS(FlexExtTickContainerOverloads, FlexExtTickContainer, 3, 4)
 
@@ -944,6 +956,7 @@ BOOST_PYTHON_MODULE(MODULE_NAME)
 
 	bpy::def("flexExtCreateRigidFromMesh", FlexExtCreateRigidFromMesh, (arg("vertices"), arg("indices"), arg("radius"), arg("expand")));
 	bpy::def("flexExtCreateContainer", FlexExtCreateContainer, (arg("solver"), arg("maxParticles")));
+	bpy::def("flexExtUpdateInstances", FlexExtUpdateInstances, (arg("container")));
 	bpy::def("flexExtAllocParticles", FlexExtAllocParticles, (arg("container"), arg("n")));
 	bpy::def("flexExtFreeParticles", FlexExtFreeParticles, (arg("container"), arg("indices")));
 	bpy::def("flexExtCreateInstance", FlexExtCreateInstance, (arg("container"), arg("asset"), arg("transform"), arg("vx"), arg("vy"), arg("vz"), arg("phase"), arg("invMassScale")));
